@@ -2,15 +2,18 @@ import imp
 from pdb import post_mortem
 from time import time
 from turtle import pos
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from .models import Blog
 from django.utils import timezone
-from .forms import BlogForm
+from .forms import BlogForm, BlogModelForm, CommentForm
 
 # Create your views here.
 
 def home(request):
-    return render(request, 'index.html')
+    # 블로그 글들을 모조리 띄우는 코드
+    # posts = Blog.objects.all() # 그냥 이렇게 받으면 쿼리셋 -> 템플릿 언어의 for문을 쓴다
+    posts = Blog.objects.filter().order_by('-date') # 이런 식으로 정렬해서 받아올 수도 있다. + date 대신 -date를 쓰면 역순
+    return render(request, 'index.html', {'posts':posts})
 
 # 블로그 글 작성 html을 보여주는 함수
 def new(request):
@@ -45,3 +48,35 @@ def formcreate(request):
         # 입력을 받을 수 있는 html을 갖다주기 (GET)
         form = BlogForm()
     return render(request, "form_create.html", {'form':form})
+
+
+def modelformcreate(request):
+    if request.method == 'POST' or request.method == "FILES":
+        # 입력 내용을 DB에 저장
+        form = BlogModelForm(request.POST, request.FILES)
+        if form.is_valid():
+            form.save()
+            return redirect('home')
+    else:
+        # 입력을 받을 수 있는 html을 갖다주기 (GET)
+        form = BlogModelForm()
+    return render(request, "form_create.html", {'form':form})
+
+def detail(request, blog_id):
+    # blog_id번째 블로그 글을 데이터 베이스로부터 갖고 와서
+    blog_detail = get_object_or_404(Blog, pk=blog_id)
+    # detail.html로 띄워주는 코드
+
+    comment_form = CommentForm()
+
+    return render(request, 'detail.html', {'blog_detail':blog_detail, 'comment_form':comment_form})
+
+def create_comment(request, blog_id):
+    filled_form = CommentForm(request.POST)
+
+    if filled_form.is_valid():
+        finished_form = filled_form.save(commit=False) # 아직은 저장하지 마라
+        finished_form.post = get_object_or_404(Blog, pk=blog_id) # 어느 글의 댓글인지 담아주고 
+        finished_form.save() # 저장
+
+    return redirect('detail', blog_id)
